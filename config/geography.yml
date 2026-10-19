@@ -1,0 +1,44 @@
+geography:
+  zip:
+    format: "5-character string"
+    retain_original: true
+    zip4_separate: true
+
+  county_fips:
+    format: "5-character string (2-digit state + 3-digit county)"
+    source: "Census TIGER/Line"
+
+  state_fips:
+    format: "2-character string"
+    source: "Census TIGER/Line"
+
+  zcta:
+    description: "ZIP Code Tabulation Areas"
+    source: "Census TIGER/Line"
+    geometry_file: "tl_{year}_us_zcta510.shp"
+
+  census_acs:
+    year: 2023
+    survey: "5-year"
+    geographies:
+      - zcta
+      - county
+      - tract
+    variables:
+      - population_total
+      - population_male
+      - population_female
+      - median_household_income
+      - poverty_count
+
+  spatial_join:
+    method: "geocode or spatial join"
+    fallback: "ZIP-to-county crosswalk"
+    confidence: "High for ZIP, variable for coordinates"
+
+  match_methods:
+    - exact_id
+    - name_address
+    - geocode
+    - crosswalk
+    - inferred

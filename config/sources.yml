@@ -1,0 +1,200 @@
+sources:
+  nppes:
+    name: "NPPES NPI Downloadable File V2"
+    url: "https://download.cms.gov/nppes/NPI_Files.html"
+    description: "Master provider/entity/location universe"
+    priority: P0
+    files:
+      - pattern: "NPPES_NPI_*.zip"
+        description: "Monthly NPI V2 file"
+      - pattern: "NPPES_NPI_*_OtherName*.csv"
+        description: "Other names reference"
+      - pattern: "NPPES_NPI_*_PracticeLocation*.csv"
+        description: "Practice location reference"
+      - pattern: "NPPES_NPI_*_Endpoint*.csv"
+        description: "Endpoint reference"
+    key_identifiers:
+      - NPI
+      - Entity Type Code
+      - Legal Business Name
+      - Taxonomy
+      - Practice Address
+    retention: "raw"
+
+  cms_clinicians:
+    name: "CMS Doctors & Clinicians National Downloadable File"
+    url: "https://data.cms.gov/provider-data/dataset/mj5m-pzi6"
+    description: "Medicare-enrolled clinician/group/address records"
+    priority: P0
+    files:
+      - pattern: "Doctors_and_Clinicians*.csv"
+        description: "National downloadable file"
+    key_identifiers:
+      - NPI
+      - PAC ID
+      - Specialty
+      - Facility Name
+      - Organization PAC
+      - Address
+    retention: "raw"
+
+  cms_affiliation:
+    name: "CMS Facility Affiliation Data"
+    url: "https://data.cms.gov/provider-data/dataset/27ea-46a8"
+    description: "Clinician-to-facility relationships"
+    priority: P0
+    files:
+      - pattern: "Facility_Affiliation*.csv"
+        description: "Facility affiliation file"
+    key_identifiers:
+      - NPI
+      - Facility Affiliation fields
+    retention: "raw"
+
+  cms_hospital:
+    name: "CMS Hospital General Information"
+    url: "https://data.cms.gov/provider-data/dataset/xubh-q36u"
+    description: "Hospital universe, address, type, ownership/rating fields"
+    priority: P0
+    files:
+      - pattern: "Hospital_General_Information*.csv"
+        description: "Hospital general information"
+    key_identifiers:
+      - Facility/CCN identifier
+      - Name
+      - Address
+      - State
+      - Type
+    retention: "raw"
+
+  cms_utilization_provider:
+    name: "CMS Medicare Physician & Other Practitioners by Provider"
+    url: "https://data.cms.gov/provider-summary-by-type-of-service/medicare-physician-other-practitioners/medicare-physician-other-practitioners-by-provider"
+    description: "Annual Medicare utilization/payment profile by NPI"
+    priority: P1
+    files:
+      - pattern: "Medicare_Physician_Other_Practitioners_by_Provider*.csv"
+        description: "Provider-level utilization"
+    key_identifiers:
+      - NPI
+      - Services
+      - Payments
+      - Beneficiaries
+      - Charges
+    retention: "raw"
+
+  cms_utilization_service:
+    name: "CMS Medicare Physician & Other Practitioners by Provider and Service"
+    url: "https://data.cms.gov/provider-summary-by-type-of-service/medicare-physician-other-practitioners/medicare-physician-other-practitioners-by-provider-and-service"
+    description: "Procedure/service-level utilization"
+    priority: P1
+    files:
+      - pattern: "Medicare_Physician_Other_Practitioners_by_Provider_and_Service*.csv"
+        description: "Provider and service utilization"
+    key_identifiers:
+      - Rendering NPI
+      - HCPCS
+      - Place of Service
+      - Utilization/payment fields
+    retention: "raw"
+
+  census_acs:
+    name: "Census ACS 5-Year Population and Socioeconomic Denominator"
+    url: "https://www.census.gov/data/developers/data-sets/acs-5year.html"
+    description: "ZCTA/county population and demographic estimates"
+    priority: P1
+    files:
+      - pattern: "ACS_5Y_*.csv"
+        description: "ACS 5-year estimates"
+    key_identifiers:
+      - ZCTA
+      - County FIPS
+      - Population
+      - Demographics
+    retention: "raw"
+
+  census_tiger:
+    name: "Census TIGER/Line Geographic Boundaries"
+    url: "https://www.census.gov/geographies/mapping-files.html"
+    description: "ZCTA/county/tract geometries"
+    priority: P1
+    files:
+      - pattern: "tl_*_us_zcta510*.zip"
+        description: "ZCTA shapefiles"
+    key_identifiers:
+      - ZCTA
+      - County FIPS
+      - Tract FIPS
+      - Geometry
+    retention: "raw"
+
+  marketplace_plan:
+    name: "CMS Marketplace Exchange Plan PUF"
+    url: "https://www.cms.gov/marketplace/resources/data/public-use-files"
+    description: "Plan metadata"
+    priority: P1
+    files:
+      - pattern: "Plan_*.csv"
+        description: "Plan PUF"
+    key_identifiers:
+      - Plan ID
+      - Issuer ID
+      - State
+      - Plan Year
+      - Plan Type
+    retention: "raw"
+
+  marketplace_service_area:
+    name: "CMS Marketplace Exchange Service Area PUF"
+    url: "https://www.cms.gov/marketplace/resources/data/public-use-files"
+    description: "Plan/service-area metadata"
+    priority: P1
+    files:
+      - pattern: "Service_Area_*.csv"
+        description: "Service Area PUF"
+    key_identifiers:
+      - Plan ID
+      - County/ZIP service area
+    retention: "raw"
+
+  marketplace_network:
+    name: "CMS Marketplace Exchange Network PUF"
+    url: "https://www.cms.gov/marketplace/resources/data/public-use-files"
+    description: "Network metadata"
+    priority: P1
+    files:
+      - pattern: "Network_*.csv"
+        description: "Network PUF"
+    key_identifiers:
+      - Plan ID
+      - Network ID
+      - Network URL
+    retention: "raw"
+
+  marketplace_mr_url:
+    name: "CMS Marketplace Exchange Machine-Readable URL PUF"
+    url: "https://www.cms.gov/marketplace/resources/data/public-use-files"
+    description: "Machine-readable file URLs for plans"
+    priority: P1
+    files:
+      - pattern: "Machine_Readable_URL_*.csv"
+        description: "MR URL PUF"
+    key_identifiers:
+      - Plan ID
+      - Network ID
+      - MRF URL
+    retention: "raw"
+
+  transparency_mrf:
+    name: "CMS Transparency in Coverage Machine-Readable Files"
+    url: "https://www.cms.gov/priorities/healthplan-price-transparency/overview/use-pricing-information-published-under-transparency-coverage-final-rule"
+    description: "Deep network/provider/rate exploration for selected plans"
+    priority: P2
+    files:
+      - pattern: "*.json"
+        description: "MRF JSON files"
+    key_identifiers:
+      - Plan/network references
+      - Provider identifiers
+    retention: "raw"
+    note: "Large and complex. Treat as Phase 2/advanced ingestion project."

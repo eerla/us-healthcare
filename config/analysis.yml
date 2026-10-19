@@ -1,0 +1,41 @@
+analysis:
+  target_state: "CT"
+  target_county: null
+  target_specialty: null
+  target_plan_year: 2024
+
+  specialties:
+    primary_care:
+      - "Family Practice"
+      - "General Practice"
+      - "Internal Medicine"
+      - "Pediatrics"
+    cardiology:
+      - "Cardiology"
+      - "Cardiovascular Disease"
+    dermatology:
+      - "Dermatology"
+    psychiatry:
+      - "Psychiatry"
+      - "Child Psychiatry"
+    orthopedics:
+      - "Orthopedic Surgery"
+
+  provider_filters:
+    entity_types:
+      - "1"  # Individual
+    medicare_enrolled: true
+    in_target_geography: true
+    is_target_specialty: true
+
+  population:
+    year: 2023
+    source: "census_acs_5year"
+
+  snapshot_date: "2026-10-07"
+
+  chart_defaults:
+    width: 12
+    height: 8
+    dpi: 150
+    color_palette: "Set2"

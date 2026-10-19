@@ -1,0 +1,953 @@
+--- Page 1 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+Mapping the U.S. Healthcare System with 
+Public Data 
+Data-engineering experiment + AI-agent implementation handoff 
+Core question: There are millions of healthcare providers and thousands of hospitals. Why can it still be difficult to get an  
+appointment, and what does the healthcare system actually look like when modeled as data? 
+Primary case study: build the national data model first, then produce a Connecticut-focused analysis as the concrete story. 
+The project should be able to expand nationally after the pipeline is proven. 
+Recommended stack: Python + DuckDB/Polars for ingestion and profiling, BigQuery for the analytical warehouse, dbt for 
+transformations/tests, and a lightweight visualization layer such as Looker Studio, Streamlit, or Observable. The agent may 
+choose an equivalent stack if it keeps the same data contracts. 
+1. What this experiment is trying to prove 
+Do not begin by assuming that appointment difficulty is caused by a simple shortage of doctors. Test competing 
+explanations. 
+Hypothesis What the data can test Likely evidence 
+H1: There are not enough providers. Provider density by specialty and 
+geography. 
+Providers per 100k; specialist scarcity. 
+H2: Providers are badly distributed. Compare provider density with 
+population density. 
+Large geographic variance. 
+H3: The usable provider pool is smaller 
+than the total pool. 
+Compare all NPIs with Medicare-
+enrolled clinicians, specialty/location 
+filters, and network data. 
+Large drop after filters. 
+H4: Some providers/groups carry very 
+high utilization. 
+Medicare utilization by NPI and 
+specialty. 
+High concentration of services. 
+H5: Hospital/medical-group 
+concentration matters. 
+Provider-to-facility and provider-to-
+organization relationships. 
+Dense affiliation clusters. 
+H6: Insurance networks are a major 
+access filter. 
+Marketplace network metadata + 
+selected machine-readable files. 
+Network-specific provider availability 
+differs. 
+Important: public data does not directly measure appointment wait time for every clinician. The project must not turn a proxy  
+into a fact. Instead, build an 'access pressure' analysis from observable supply, geography, network participation where 
+available, and utilization. 
+2. Public datasets to use 
+Use official sources as the canonical inputs. Record source URL, retrieval timestamp, dataset version, file checksum, and 
+transformation version in an ingestion manifest. 
+Priorit
+y 
+Dataset Purpose Key identifiers / 
+fields 
+Source 
+P0 NPPES NPI 
+Downloada
+ble File V2 
+Master 
+provider/entity/locat
+ion universe. 
+NPI, Entity Type, Legal 
+Business Name, 
+taxonomy, practice 
+address, 
+enumeration/deactiva
+tion dates. 
+https://download.cms.gov/nppes/NPI_Files.html 
+--- Page 2 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+P0 NPPES 
+Practice 
+Location 
+Reference 
+File 
+Additional Type 
+1/Type 2 practice 
+locations. 
+NPI + location fields. https://download.cms.gov/nppes/NPI_Files.html 
+P0 CMS 
+Doctors & 
+Clinicians 
+National 
+Downloada
+ble File 
+Medicare-enrolled 
+clinician/group/addr
+ess records. 
+NPI, PAC IDs, 
+specialty, facility 
+name, organization 
+PAC, address, 
+assignment. 
+https://data.cms.gov/provider-data/dataset/mj5m-
+pzi6 
+P0 CMS Facility 
+Affiliation 
+Data 
+Clinician-to-facility 
+relationships. 
+NPI + facility affiliation 
+fields; inspect current 
+dictionary. 
+https://data.cms.gov/provider-data/dataset/27ea-
+46a8 
+P0 CMS 
+Hospital 
+General 
+Information 
+Hospital universe, 
+address, type, 
+ownership/rating 
+fields. 
+Facility/CCN 
+identifier, name, 
+address, state, type. 
+https://data.cms.gov/provider-data/dataset/xubh-
+q36u 
+P1 CMS 
+Medicare 
+Physician & 
+Other 
+Practitioner
+s - by 
+Provider 
+Annual Medicare 
+utilization/payment 
+profile by NPI. 
+NPI, services, 
+payments, 
+beneficiaries, charges 
+and related measures. 
+https://data.cms.gov/provider-summary-by-type-
+of-service/medicare-physician-other-
+practitioners/medicare-physician-other-
+practitioners-by-provider 
+P1 CMS 
+Medicare 
+Physician & 
+Other 
+Practitioner
+s - by 
+Provider and 
+Service 
+Procedure/service-
+level utilization. 
+Rendering NPI, 
+HCPCS, place of 
+service, 
+utilization/payment 
+fields. 
+https://data.cms.gov/provider-summary-by-type-
+of-service/medicare-physician-other-
+practitioners/medicare-physician-other-
+practitioners-by-provider-and-service 
+P1 Census ACS 
+5-year 
+Population and 
+socioeconomic 
+denominator. 
+ZCTA/county 
+population and 
+demographic 
+estimates. 
+https://www.census.gov/data/developers/data-
+sets/acs-5year.html 
+P1 Census 
+TIGER/Line 
+Geographic 
+boundaries and 
+spatial joins. 
+ZCTA/county/tract 
+geometries. 
+https://www.census.gov/geographies/mapping-
+files.html 
+P1 CMS 
+Marketplace 
+Exchange 
+PUFs 
+Plan/service-
+area/network 
+metadata. 
+Plan ID, issuer, 
+county/ZIP service 
+area, network URL, 
+machine-readable 
+URL. 
+https://www.cms.gov/marketplace/resources/data
+/public-use-files 
+P2 Transparenc
+y in 
+Coverage 
+MRFs 
+Deep 
+network/provider/rat
+e exploration for 
+selected plans. 
+Plan/network 
+references and 
+provider identifiers 
+where exposed by file. 
+https://www.cms.gov/priorities/healthplan-price-
+transparency/overview/use-pricing-information-
+published-under-transparency-coverage-final-rule 
+Current CMS notes: the NPPES page says Version 2 is the recommended downloadable format and, as of March 3, 2026, 
+Version 1 is no longer supported. The September 14, 2026 monthly V2 file is listed at about 1.1 GB compressed. NPPES also 
+supplies other-name, practice-location, and endpoint reference files. CMS warns that having an NPI does not validate 
+licensure or credentialing. 
+cite
+turn3search0
+ 
+The CMS Doctors & Clinicians National Downloadable File currently has 3,388,628 rows and 31 columns and is unique at 
+clinician/enrollment/group/address level rather than one row per person. That means COUNT(*) must never be interpreted as 
+number of doctors. 
+cite
+turn1search1
+turn1search9
+ 
+--- Page 3 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+CMS's Facility Affiliation Data currently contains more than 2.2 million rows and exposes an API/download. 
+cite
+turn1search4
+ 
+CMS Hospital General Information currently contains 5,419 rows and 38 columns and provides an API/download. 
+cite
+turn0search6
+ 
+CMS's Medicare Physician & Other Practitioners by Provider dataset is annual; the latest available dataset is 2024 and 
+contains provider-level utilization/payment information keyed by NPI. 
+cite
+turn2search3
+turn2search4
+ 
+CMS's Exchange PUF collection includes Plan, Service Area, Network, and Machine -readable URL files. This gives a practical 
+route into insurance-network analysis without pretending that every commercial network is directly available as a clean 
+national table. 
+cite
+turn2search1
+ 
+Transparency in Coverage machine-readable files are much larger and more complex. CMS explicitly describes their size and 
+complexity and says they are intended for third-party processing. Treat them as a Phase 2/advanced ingestion project, not the 
+first pipeline. 
+cite
+turn2search0
+turn2search10
+ 
+3. Recommended project phases 
+Phase Scope Exit criterion 
+0 Reproducible environment + source 
+manifest. 
+One command records 
+versions/checksums and creates raw/ 
+directories. 
+1 NPPES + Census geography. Can count unique NPIs, classify 
+entities, and map locations. 
+2 CMS Doctors & Clinicians + facility 
+affiliations. 
+Can connect clinicians to Medicare 
+enrollment records, groups, 
+addresses, and facilities. 
+3 Hospitals + Medicare utilization. Can measure hospital/provider supply 
+and utilization proxies. 
+4 Marketplace network metadata. Can compare plan/service-
+area/network metadata for selected 
+states/plans. 
+5 Connecticut case study. Dashboard and SQL results are 
+reproducible for CT. 
+6 National expansion. Same models run across all states 
+without special-case logic. 
+7 Story packaging. Charts, methodology, caveats, and 
+Medium-ready narrative generated 
+from versioned outputs. 
+4. Warehouse architecture 
+raw 
+├── nppes 
+│   ├── npi_monthly_v2 
+│   ├── practice_locations 
+│   ├── other_names 
+│   └── endpoints 
+├── cms 
+│   ├── clinicians_national 
+│   ├── facility_affiliation 
+│   ├── hospital_general 
+│   ├── mp_provider 
+│   └── mp_provider_service 
+├── census 
+│   ├── acs 
+--- Page 4 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+│   └── tiger_zcta 
+└── marketplace 
+    ├── plan_puf 
+    ├── service_area_puf 
+    ├── network_puf 
+    └── mr_url_puf 
+ 
+staging 
+├── stg_npi 
+├── stg_npi_location 
+├── stg_clinician 
+├── stg_affiliation 
+├── stg_hospital 
+├── stg_utilization 
+├── stg_population 
+└── stg_marketplace 
+ 
+core 
+├── dim_provider 
+├── dim_organization 
+├── dim_location 
+├── dim_facility 
+├── dim_specialty 
+├── dim_plan 
+├── bridge_provider_location 
+├── bridge_provider_group 
+├── bridge_provider_facility 
+├── bridge_plan_service_area 
+└── fact_provider_utilization 
+ 
+mart 
+├── mart_provider_supply 
+├── mart_specialty_supply 
+├── mart_geographic_access 
+├── mart_provider_network 
+├── mart_provider_concentration 
+├── mart_facility_ecosystem 
+└── mart_access_pressure 
+5. Core warehouse schema 
+Use stable surrogate keys internally, but preserve source identifiers. NPI is the natural external identifier for providers; CMS 
+facility identifiers/CCNs should remain separate from NPI because NPI is not a facility identifier and is 'intelligence -free.' 
+Table Grain Important columns 
+dim_provider One current provider/entity per NPI provider_sk, npi, entity_type, 
+first_name, last_name, legal_name, 
+enumeration_date, deactivation_date, 
+primary_taxonomy, taxonomy_list, 
+source_updated_at 
+dim_organization One organization NPI organization_sk, npi, 
+legal_business_name, dba_name, 
+taxonomy, address_sk 
+dim_location One normalized location location_sk, address1, address2, city, 
+state, zip5, zip4, county_fips, lat, lon, 
+geocode_quality 
+dim_specialty One taxonomy/specialty specialty_sk, taxonomy_code, 
+taxonomy_description, 
+specialty_group, is_primary 
+dim_facility One facility facility_sk, ccn, facility_name, 
+facility_type, address_sk, state, source 
+--- Page 5 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+dim_plan One marketplace plan/version plan_sk, plan_id, issuer_id, state, 
+plan_year, plan_type 
+bridge_provider_location Provider x location provider_sk, location_sk, source, 
+is_primary, effective_date, end_date 
+bridge_provider_group Clinician x group/enrollment provider_sk, org_pac_id, 
+group_assignment, enrollment_id, 
+source_snapshot 
+bridge_provider_facility Clinician x facility affiliation provider_sk, facility_sk or 
+facility_match_key, affiliation_type, 
+source_snapshot 
+bridge_plan_service_area Plan x geography plan_sk, state, county_fips, zip5, 
+service_area_source 
+fact_provider_utilization NPI x year provider_sk, year, services, 
+beneficiaries, allowed_amount, 
+Medicare_payment, 
+submitted_charges, source 
+fact_provider_service NPI x HCPCS x year provider_sk, year, hcpcs, 
+place_of_service, services, 
+beneficiaries, allowed_amount, 
+payment 
+fact_population Geography x year geo_type, geo_id, year, population, 
+source 
+6. Entity resolution and joins 
+The most important engineering rule: do not infer relationships from names when a source identifier exists. Keep source IDs 
+and create explicit match-quality fields when a relationship must be inferred. 
+Relationship Preferred join Fallback Confidence 
+NPPES provider → CMS 
+clinician 
+NPI = NPI None High 
+CMS clinician → Medicare 
+utilization 
+NPI = Rndrng_NPI / NPI None High 
+CMS clinician → facility 
+affiliation 
+NPI = NPI None High for clinician side 
+Hospital → facility affiliation Use facility identifier/CCN if 
+exposed and stable 
+Normalized facility name + 
+address 
+High/medium 
+Provider → organization Use CMS org PAC/group 
+fields where supplied 
+Organization 
+NPI/name/address only if 
+source supports it 
+Medium; document 
+Location → ZIP ZIP5 Address geocoding High for ZIP, variable for 
+coordinates 
+ZIP → county Census 
+ZCTA/crosswalk/spatial join 
+Address geocode High 
+Plan → service area Plan ID + PUF service-area 
+keys 
+None High 
+Plan → provider network Use network/MRF identifiers 
+where available 
+Manual selected-plan 
+validation 
+Variable 
+A crucial distinction: a Type 2 NPI is an organization, but the existence of an organization NPI does not automatically prove  
+that an individual clinician is employed by that organization. CMS's clinician file has group/PAC fields that should be 
+preferred for the clinician-to-group relationship. 
+7. Canonical transformations 
+1. Normalize NPI to a 10-character string. Never cast it to an integer. 
+2. Split NPPES Type 1 individuals and Type 2 organizations into separate logical entities. 
+--- Page 6 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+3. Explode NPPES taxonomy fields into a provider-specialty bridge rather than keeping only one taxonomy. 
+4. Explode primary and reference practice locations into a provider-location bridge. 
+5. Normalize ZIP to ZIP5 and retain the original raw ZIP field. 
+6. Attach county/state using Census geography. Keep a geography_match_method column. 
+7. Deduplicate clinician rows at the correct analytical grain; the CMS clinician file is not person -grain. 
+8. Use NPI as the cross-source key for provider-level utilization. 
+9. Use explicit facility identifiers when available; do not equate facility_name with a unique facility. 
+10. Create a source_snapshot_date on every core bridge/fact table. 
+11. Maintain row-count and uniqueness tests for every source and transformation. 
+12. Create a data_quality table containing source, snapshot, rows_loaded, rows_rejected, null_rate, duplicate_rate, and 
+checksum. 
+8. SQL analyses — 15 experiments 
+The examples below use BigQuery-style SQL. Replace project.dataset names with the actual environment. The agent should 
+implement each query as a versioned model or analysis file and save the output used in the article.  
+8.1 How many unique NPIs exist by entity type? 
+SELECT 
+  entity_type_code, 
+  COUNT(DISTINCT npi) AS unique_npis 
+FROM core.dim_provider 
+GROUP BY 1 
+ORDER BY unique_npis DESC; 
+Story: NPI count is a provider/entity enumeration count, not a count of practicing doctors. 
+8.2 How many individual clinicians by specialty? 
+SELECT 
+  specialty_group, 
+  COUNT(DISTINCT provider_sk) AS clinicians 
+FROM core.dim_provider_specialty 
+WHERE entity_type_code = '1' 
+GROUP BY 1 
+ORDER BY clinicians DESC; 
+8.3 Primary-care supply per 100,000 population 
+WITH supply AS ( 
+  SELECT state, 
+         COUNT(DISTINCT provider_sk) AS providers 
+  FROM mart.mart_provider_supply 
+  WHERE specialty_group = 'Primary Care' 
+  GROUP BY state 
+) 
+SELECT 
+  s.state, 
+  s.providers, 
+  p.population, 
+  SAFE_DIVIDE(s.providers * 100000, p.population) AS providers_per_100k 
+FROM supply s 
+JOIN mart.state_population p USING (state) 
+ORDER BY providers_per_100k DESC; 
+8.4 Specialist density by county 
+SELECT 
+  county_fips, 
+  specialty_group, 
+--- Page 7 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+  COUNT(DISTINCT provider_sk) AS providers, 
+  MAX(population) AS population, 
+  SAFE_DIVIDE(COUNT(DISTINCT provider_sk) * 100000, MAX(population)) AS providers_per_100k 
+FROM mart.mart_specialty_supply 
+GROUP BY county_fips, specialty_group 
+HAVING MAX(population) > 0 
+ORDER BY providers_per_100k; 
+8.5 Where are providers concentrated? 
+SELECT 
+  state, 
+  COUNT(DISTINCT provider_sk) AS providers, 
+  COUNT(DISTINCT location_sk) AS locations, 
+  COUNT(DISTINCT organization_sk) AS organizations 
+FROM mart.mart_provider_supply 
+GROUP BY state 
+ORDER BY providers DESC; 
+8.6 How many providers have multiple practice locations? 
+SELECT 
+  COUNTIF(location_count = 1) AS one_location, 
+  COUNTIF(location_count BETWEEN 2 AND 5) AS two_to_five, 
+  COUNTIF(location_count > 5) AS six_plus 
+FROM ( 
+  SELECT provider_sk, COUNT(DISTINCT location_sk) AS location_count 
+  FROM core.bridge_provider_location 
+  GROUP BY provider_sk 
+); 
+8.7 How many CMS clinician records collapse to one NPI? 
+SELECT 
+  COUNT(*) AS clinician_rows, 
+  COUNT(DISTINCT npi) AS unique_npis, 
+  SAFE_DIVIDE(COUNT(*), COUNT(DISTINCT npi)) AS rows_per_npi 
+FROM staging.stg_clinician; 
+This is a key engineering/storytelling chart: it demonstrates why naïve row counts produce misleading 'number of doctors' 
+claims. 
+8.8 Providers per facility and facility concentration 
+SELECT 
+  facility_id, 
+  facility_name, 
+  COUNT(DISTINCT npi) AS affiliated_clinicians 
+FROM core.bridge_provider_facility 
+GROUP BY facility_id, facility_name 
+ORDER BY affiliated_clinicians DESC; 
+8.9 Provider concentration by organization 
+SELECT 
+  org_pac_id, 
+  COUNT(DISTINCT provider_sk) AS clinicians 
+FROM core.bridge_provider_group 
+WHERE org_pac_id IS NOT NULL 
+GROUP BY org_pac_id 
+ORDER BY clinicians DESC; 
+8.10 Medicare utilization per clinician 
+SELECT 
+  specialty_group, 
+--- Page 8 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+  COUNT(DISTINCT provider_sk) AS clinicians, 
+  SUM(services) AS services, 
+  SAFE_DIVIDE(SUM(services), COUNT(DISTINCT provider_sk)) AS services_per_clinician 
+FROM mart.mart_provider_utilization 
+GROUP BY specialty_group 
+ORDER BY services_per_clinician DESC; 
+8.11 Utilization concentration — top 1%, 5%, 10% 
+WITH ranked AS ( 
+  SELECT 
+    provider_sk, 
+    services, 
+    PERCENT_RANK() OVER (ORDER BY services DESC) AS pct 
+  FROM mart.mart_provider_utilization 
+) 
+SELECT 
+  SUM(IF(pct <= 0.01, services, 0)) / SUM(services) AS top_1pct_share, 
+  SUM(IF(pct <= 0.05, services, 0)) / SUM(services) AS top_5pct_share, 
+  SUM(IF(pct <= 0.10, services, 0)) / SUM(services) AS top_10pct_share 
+FROM ranked; 
+8.12 Providers per 100k vs utilization 
+SELECT 
+  county_fips, 
+  providers_per_100k, 
+  services_per_provider 
+FROM mart.mart_geographic_access 
+WHERE providers_per_100k IS NOT NULL 
+  AND services_per_provider IS NOT NULL; 
+Visualize as a scatter plot. This does not prove appointment availability, but it can identify places where supply and observ ed 
+Medicare utilization differ. 
+8.13 Marketplace plan service-area breadth 
+SELECT 
+  issuer_id, 
+  plan_id, 
+  plan_year, 
+  COUNT(DISTINCT zip5) AS zips, 
+  COUNT(DISTINCT county_fips) AS counties 
+FROM core.bridge_plan_service_area 
+GROUP BY issuer_id, plan_id, plan_year 
+ORDER BY counties DESC, zips DESC; 
+8.14 Network metadata coverage 
+SELECT 
+  state, 
+  COUNT(DISTINCT plan_id) AS plans, 
+  COUNTIF(network_url IS NOT NULL) AS plans_with_network_url, 
+  COUNTIF(mrf_url IS NOT NULL) AS plans_with_mrf_url 
+FROM mart.mart_plan_network_metadata 
+GROUP BY state 
+ORDER BY state; 
+8.15 The 'accessible pool' funnel 
+SELECT 
+  COUNT(DISTINCT provider_sk) AS all_providers, 
+  COUNT(DISTINCT IF(is_target_specialty, provider_sk, NULL)) AS specialty_providers, 
+  COUNT(DISTINCT IF(in_target_geography, provider_sk, NULL)) AS geographically_relevant, 
+  COUNT(DISTINCT IF(medicare_enrolled, provider_sk, NULL)) AS medicare_enrolled, 
+--- Page 9 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+  COUNT(DISTINCT IF(network_match, provider_sk, NULL)) AS network_matched 
+FROM mart.mart_access_pressure; 
+This should become the centerpiece only if the network_match step is based on actual provider-level network data. If the 
+network data is incomplete, label the output as a selected-plan case study rather than a national accessible-provider count. 
+9. Visualizations that should drive the Medium story 
+# Visualization Purpose Why it matters 
+1 Provider-count funnel NPI → individual → specialty 
+→ location → Medicare-
+enrolled → selected network 
+Shows why headline 
+provider counts can be 
+misleading. 
+2 U.S./CT provider density 
+map 
+Providers per 100k by 
+county 
+Makes geographic inequality 
+visible. 
+3 Specialty scarcity map Primary care, cardiology, 
+dermatology, psychiatry, 
+orthopedics, etc. 
+Shows that 'doctor shortage' 
+is specialty-specific. 
+4 Provider → group → facility 
+network graph 
+Nodes and edges for one 
+metro area 
+Explains organizations and 
+affiliations visually. 
+5 Top health-system/provider-
+group concentration 
+Horizontal bar chart Shows whether local care is 
+concentrated in a few 
+organizations. 
+6 Provider supply vs Medicare 
+utilization scatter 
+x=supply/100k, 
+y=services/provider 
+Tests whether low supply 
+areas also show higher 
+observed utilization. 
+7 Hospital ecosystem map Hospitals + affiliated 
+clinicians + groups 
+Turns 'a hospital' into a 
+connected ecosystem. 
+8 Plan service-area 
+comparison 
+Counties/ZIPs covered by 
+selected plans 
+Explains that insurance is 
+also a geographic network. 
+9 Selected-plan network 
+funnel 
+All clinicians → specialty → 
+geography → network 
+Closest public-data 
+approximation to the 
+appointment-access 
+question. 
+10 One synthetic patient 
+journey 
+PCP → specialist → imaging → 
+hospital → pharmacy 
+Humanizes the graph 
+without using real patient 
+data. 
+10. The central Medium narrative 
+Suggested title: 'I Tried to Map the U.S. Healthcare System with Public Data. Here’s Why Getting an Appointment Is So Hard.'  
+Alternative: 'There Are Millions of Healthcare Providers. So Why Is Getting an Appointment Still So Hard?'  
+Opening: start with the contradiction. The public can count millions of NPIs and thousands of hospitals, yet a patient does 
+not experience the healthcare system as a national pool of providers. 
+Act 1 — Count the doctors. Explain NPI/entity counts and why rows are not people. 
+Act 2 — Put them on a map. Show geographic and specialty differences. 
+Act 3 — Connect them to groups and hospitals. Reveal the healthcare graph. 
+Act 4 — Add Medicare utilization. Show that provider presence and provider capacity are not the same measurement.  
+Act 5 — Add insurance network metadata for a selected market/plan. Show the accessible pool shrinking, but only where the 
+data supports it. 
+--- Page 10 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+Conclusion: the useful mental model is not 'How many doctors exist?' It is 'How many appropriate providers are 
+geographically reachable, connected to the right organizations, participating in the relevant network, and apparently carryin g 
+available capacity?' Public data can measure pieces of that question, but not every piece. 
+11. What NOT to claim 
+• Do not say NPPES contains the number of licensed doctors. CMS explicitly says NPI issuance does not validate licensure 
+or credentialing. 
+• Do not count CMS clinician rows as people. The file is at clinician/enrollment/group/address grain.  
+• Do not claim Medicare utilization equals total healthcare utilization. It covers Original Medicare fee -for-service Part B 
+data. 
+• Do not infer that a provider is accepting new patients from an NPI or Medicare enrollment record. 
+• Do not infer appointment wait time from utilization alone. 
+• Do not assume a hospital name is a unique corporate entity. 
+• Do not claim a provider is in-network for a commercial plan unless the provider-plan relationship is actually observed in 
+the selected network data. 
+• Do not combine datasets from different years without exposing the year mismatch. 
+• Do not use patient-level or protected health information. This experiment should use public aggregate/provider/facility 
+data only. 
+12. Data quality tests 
+Test Expectation 
+NPI format Exactly 10 digits; retain as STRING. 
+NPI uniqueness One row in dim_provider per NPI after selecting the current 
+source record. 
+Entity type 1 = individual; 2 = organization in NPPES logic. 
+ZIP format ZIP5 is 5 characters; retain original value separately. 
+Provider utilization join No unexpected many-to-many explosion on NPI. 
+Facility join Track exact-ID vs name/address inferred matches 
+separately. 
+Population join Every reported geography has a source population for the 
+selected year. 
+Snapshot consistency Every analysis records source years/snapshot dates. 
+Row reconciliation Raw rows = accepted + rejected; rejected rows have a 
+reason. 
+Network matching Every network match has source URL/file and match 
+method. 
+13. Suggested repository structure 
+us-healthcare-data/ 
+├── README.md 
+├── AGENT_HANDOFF.md 
+├── pyproject.toml 
+├── .env.example 
+├── Makefile 
+├── config/ 
+│   ├── sources.yml 
+│   ├── geography.yml 
+│   └── analysis.yml 
+├── ingestion/ 
+│   ├── nppes/ 
+│   ├── cms/ 
+--- Page 11 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+│   ├── census/ 
+│   └── marketplace/ 
+├── dbt/ 
+│   ├── staging/ 
+│   ├── core/ 
+│   └── marts/ 
+├── sql/ 
+│   ├── 01_provider_counts.sql 
+│   ├── 02_specialty_supply.sql 
+│   ├── ... 
+│   └── 15_access_funnel.sql 
+├── tests/ 
+├── notebooks/ 
+│   ├── 01_profile_sources.ipynb 
+│   ├── 02_entity_resolution.ipynb 
+│   └── 03_story_validation.ipynb 
+├── dashboards/ 
+├── docs/ 
+│   ├── data_dictionary.md 
+│   ├── methodology.md 
+│   └── story_outline.md 
+└── outputs/ 
+    ├── tables/ 
+    ├── charts/ 
+    └── maps/ 
+14. AI-agent build instructions 
+Paste the following section into an AI coding agent as the implementation contract. 
+AI AGENT SYSTEM BRIEF 
+You are the lead data engineer for a reproducible public-data investigation of the U.S. healthcare system. 
+ 
+GOAL 
+Build a production-quality analytical pipeline that explains why the number of healthcare providers is not 
+equivalent to healthcare access. 
+ 
+PRIMARY QUESTION 
+There are millions of healthcare providers and thousands of hospitals. How does the observable provider ecosystem 
+differ from the provider pool a patient can realistically use? 
+ 
+SCOPE 
+1. Build the provider/entity/location backbone from NPPES. 
+2. Add CMS Doctors & Clinicians data. 
+3. Add CMS Facility Affiliation data. 
+4. Add CMS Hospital General Information. 
+5. Add Medicare Physician & Other Practitioners utilization. 
+6. Add Census population/geography. 
+7. Add Marketplace Exchange PUF network/service-area metadata. 
+8. Implement a selected-plan network experiment only when provider-level matching is defensible. 
+9. Produce Connecticut results first. 
+10. Make the pipeline parameterized so it can run nationally. 
+ 
+ENGINEERING PRINCIPLES 
+- Prefer official public sources. 
+- Never fabricate fields, URLs, identifiers, or relationships. 
+- Preserve raw data unchanged. 
+- Record source URL, retrieval timestamp, source version/date, file checksum, row count, and schema. 
+- Treat NPI as STRING. 
+- Never use COUNT(*) as a person count. 
+- Keep source grain explicit. 
+- Never infer a provider relationship from a name if a source identifier exists. 
+--- Page 12 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+- Track match method and confidence for inferred relationships. 
+- Do not use patient-level PHI. 
+- Do not scrape websites unless a source is explicitly approved and its terms allow it. 
+- Make every analysis reproducible from versioned SQL. 
+- Every published number must have a source snapshot and methodology note. 
+ 
+SOURCE REGISTRY 
+NPPES: https://download.cms.gov/nppes/NPI_Files.html 
+CMS Doctors & Clinicians: https://data.cms.gov/provider-data/dataset/mj5m-pzi6 
+CMS Facility Affiliations: https://data.cms.gov/provider-data/dataset/27ea-46a8 
+CMS Hospital General Information: https://data.cms.gov/provider-data/dataset/xubh-q36u 
+CMS Medicare Physician by Provider: https://data.cms.gov/provider-summary-by-type-of-service/medicare-physician-
+other-practitioners/medicare-physician-other-practitioners-by-provider 
+CMS Medicare Physician by Provider and Service: 
+https://data.cms.gov/provider-summary-by-type-of-service/medicare-physician-other-practitioners/medicare-physician-
+other-practitioners-by-provider-and-service 
+CMS Exchange PUFs: https://www.cms.gov/marketplace/resources/data/public-use-files 
+CMS Transparency in Coverage: https://www.cms.gov/priorities/healthplan-price-transparency/overview/use-pricing-
+information-published-under-transparency-coverage-final-rule 
+Census ACS: https://www.census.gov/data/developers/data-sets/acs-5year.html 
+Census TIGER/Line: https://www.census.gov/geographies/mapping-files.html 
+ 
+IMPLEMENTATION ORDER 
+Phase 1: source manifest, NPPES ingestion, Census geography. 
+Phase 2: CMS clinician and affiliation ingestion. 
+Phase 3: hospital and utilization ingestion. 
+Phase 4: analytical marts. 
+Phase 5: Connecticut dashboard. 
+Phase 6: Marketplace network metadata. 
+Phase 7: selected-plan network experiment. 
+Phase 8: national expansion and story outputs. 
+ 
+REQUIRED TABLES 
+dim_provider 
+dim_organization 
+dim_location 
+dim_specialty 
+dim_facility 
+dim_plan 
+bridge_provider_location 
+bridge_provider_group 
+bridge_provider_facility 
+bridge_plan_service_area 
+fact_provider_utilization 
+fact_provider_service 
+fact_population 
+ 
+REQUIRED MARTS 
+mart_provider_supply 
+mart_specialty_supply 
+mart_geographic_access 
+mart_provider_network 
+mart_provider_concentration 
+mart_facility_ecosystem 
+mart_access_pressure 
+ 
+REQUIRED ANALYSES 
+Implement the 15 analyses in this document. Each query must be stored in source control and have a short methodology 
+comment. 
+ 
+REQUIRED OUTPUTS 
+- source_manifest.csv 
+- data_quality_report.csv 
+- provider_counts.csv 
+--- Page 13 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+- specialty_supply.csv 
+- county_supply.csv 
+- facility_affiliations.csv 
+- provider_concentration.csv 
+- utilization_summary.csv 
+- network_metadata.csv 
+- access_funnel.csv 
+- charts/ 
+- maps/ 
+- methodology.md 
+- story_outline.md 
+ 
+ACCEPTANCE CRITERIA 
+1. A fresh environment can run the pipeline from documented commands. 
+2. Raw files are not modified in place. 
+3. All datasets have source metadata. 
+4. NPI joins do not create unexplained many-to-many explosions. 
+5. Provider counts distinguish unique NPI from CMS clinician rows. 
+6. Connecticut can be selected through configuration rather than hard-coded SQL. 
+7. Every chart is generated from a versioned query/output. 
+8. Every published claim can be traced to a dataset, snapshot, and SQL model. 
+9. The final README explains known limitations. 
+10. The agent must stop and ask for human review when a required relationship cannot be supported by a public 
+identifier. 
+ 
+DO NOT 
+- invent appointment wait times 
+- invent insurance network participation 
+- claim that NPI = licensed doctor 
+- claim Medicare utilization = all utilization 
+- silently deduplicate source records 
+- silently mix years 
+- publish personal or patient-level information 
+ 
+FIRST TASK 
+Before writing transformation code, create: 
+1. source_manifest.yml 
+2. proposed schemas 
+3. ingestion plan 
+4. data-quality checklist 
+5. exact source files/endpoints to be used 
+Then wait for review before beginning large downloads. 
+15. Definition of done for the article 
+Requirement Done when 
+Data At least 5 official datasets are integrated with documented 
+keys. 
+Engineering Pipeline is reproducible and incremental where practical. 
+Entity resolution Provider, organization, location and facility relationships 
+have explicit source/match logic. 
+Analysis At least 10 of the 15 SQL analyses produce validated 
+outputs; target all 15. 
+Geography Connecticut county/ZIP-level analysis is complete. 
+Network At least one selected-plan network case study is validated 
+or explicitly deferred due to insufficient public matching. 
+Story At least 5 charts/maps support one coherent narrative. 
+Caveats Every access claim distinguishes direct measurement from 
+proxy. 
+--- Page 14 ---
+U.S. Healthcare Public Data Experiment — AI Agent Handoff 
+16. Sources and implementation notes 
+Official CMS Provider Data Catalog: https://developer.cms.gov/provider-data/ — machine-readable Medicare provider 
+datasets, including hospitals and clinicians. 
+cite
+turn0search3
+ 
+NPPES downloadable files: https://download.cms.gov/nppes/NPI_Files.html — current V2 files and reference files. 
+cite
+turn3search0
+ 
+CMS Doctors & Clinicians: https://data.cms.gov/provider-data/topics/doctors-clinicians — National Downloadable File, 
+Facility Affiliation, and Utilization datasets. 
+cite
+turn1search0
+ 
+CMS Hospital General Information: https://data.cms.gov/provider-data/dataset/xubh-q36u — current hospital general 
+information dataset/API. 
+cite
+turn0search6
+ 
+CMS Medicare Physician & Other Practitioners: https://data.cms.gov/provider-summary-by-type-of-service/medicare-
+physician-other-practitioners — provider, service and geography products. 
+cite
+turn2search12
+ 
+CMS Marketplace Exchange PUFs: https://www.cms.gov/marketplace/resources/data/public -use-files — Plan, Service Area, 
+Network and machine-readable URL files. 
+cite
+turn2search1
+ 
+CMS Transparency in Coverage: https://www.cms.gov/priorities/healthplan-price-transparency/overview/use-pricing-
+information-published-under-transparency-coverage-final-rule — machine-readable in-network/out-of-network files and 
+implementation context. 
+cite
+turn2search10
+ 
+Census ACS and TIGER/Line: https://www.census.gov/data/developers/data-sets/acs-5year.html and 
+https://www.census.gov/geographies/mapping-files/2025/geo/tiger-line-file.html. 
+cite
+turn0search16
+turn2search2
+ 
+17. Recommended first build 
+Do not download every possible healthcare dataset on day one. Build the smallest end-to-end slice first: 
+13. Download the current NPPES V2 monthly file and reference files. 
+14. Filter to Connecticut for the first analytical run after raw preservation, while retaining the national raw source if storage  
+permits. 
+15. Build unique NPI/provider and provider-location dimensions. 
+16. Load the CMS Doctors & Clinicians National Downloadable File and Facility Affiliation Data. 
+17. Load CMS Hospital General Information. 
+18. Load Census population/geography. 
+19. Produce provider density, specialty density, clinician-row-vs-NPI, provider-to-facility, and facility concentration 
+analyses. 
+20. Only after those are stable, add Medicare utilization. 
+21. Then add Marketplace plan/network metadata. 
+22. Finally decide whether a selected-plan provider-level network match is strong enough to publish. 
+The first milestone should be a single reproducible chart: 'The healthcare provider funnel in Connecticut.' If that chart is 
+analytically sound, the rest of the project has a strong foundation. 

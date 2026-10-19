@@ -1,0 +1,21 @@
+# Data files
+raw/
+db/*.duckdb
+db/*.duckdb.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Build artifacts
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+.env

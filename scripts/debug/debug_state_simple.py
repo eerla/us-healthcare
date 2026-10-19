@@ -1,0 +1,26 @@
+import duckdb
+
+conn = duckdb.connect('db/warehouse.duckdb')
+conn.execute("ATTACH 'db/nppes_raw.duckdb' AS nppes_raw")
+conn.execute("ATTACH 'db/census_raw.duckdb' AS census_raw")
+conn.execute("ATTACH 'db/cms_raw.duckdb' AS cms_raw")
+conn.execute("ATTACH 'db/utilization_raw.duckdb' AS utilization_raw")
+conn.execute("ATTACH 'db/marketplace_raw.duckdb' AS marketplace_raw")
+
+# Check state populations
+result = conn.execute("SELECT state_name, SUM(total_population) as pop FROM staging.stg_population_county GROUP BY state_name ORDER BY pop DESC LIMIT 10").fetchall()
+print('State populations:', result)
+
+# Check state providers
+result = conn.execute("""
+    SELECT p.practice_state, COUNT(DISTINCT p.provider_sk) as cnt
+    FROM core.dim_provider p
+    WHERE (p.deactivation_date IS NULL OR p.deactivation_date = '')
+      AND p.practice_state IS NOT NULL AND p.practice_state <> ''
+    GROUP BY p.practice_state
+    ORDER BY cnt DESC
+    LIMIT 10
+""").fetchall()
+print('State providers:', result)
+
+conn.close()
